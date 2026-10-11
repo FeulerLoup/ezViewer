@@ -1,0 +1,92 @@
+name: 构建与发布
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build:
+    name: 构建单文件版
+    runs-on: windows-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        id: dotnet
+        with:
+          dotnet-version: 8.0.x
+
+      # 构建机上还装有更新的 SDK，dotnet 默认会选最新的；固定用 .NET 8 SDK，与本地构建一致
+      - name: 固定 .NET SDK 版本
+        run: dotnet new globaljson --sdk-version '${{ steps.dotnet.outputs.dotnet-version }}'
+
+      - name: 确定版本号
+        id: version
+        run: |
+          $version = ''
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            if ($env:GITHUB_REF_NAME -match '^v(\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?)$') {
+              $version = $Matches[1]
+            } else {
+              throw "标签 $env:GITHUB_REF_NAME 不是版本号，应形如 v1.2.0 或 v1.2.0-beta.1"
+            }
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      # 不加 -Test：自测依赖简体中文系统环境，在英文系统的构建机上无法通过（见 README）
+      - name: 发布 dist\ezViewer.exe
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: ./build.ps1 -Version $env:VERSION
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: dist/ezViewer.exe
+          archive: false
+          if-no-files-found: error
+
+  release:
+    name: 发布 Release
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: ezViewer.exe
+
+      - name: 创建 Release 并上传 ezViewer.exe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # 重新运行时 Release 已存在，只替换文件
+            gh release upload "$TAG" ezViewer.exe --clobber
+          else
+            flags=()
+            if [[ "$VERSION" == *-* ]]; then flags+=(--prerelease); fi
+            gh release create "$TAG" ezViewer.exe --verify-tag --title "ezViewer $VERSION" --generate-notes \
+              --notes "便携单文件版，下载 ezViewer.exe 即可运行（Windows 10/11 x64，无需安装）。" "${flags[@]}"
+          fi

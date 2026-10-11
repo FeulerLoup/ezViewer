@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <RootNamespace>EzViewer.SelfTest</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\ezViewer\Core\**\*.cs" Link="Linked\Core\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\ezViewer\Sources\**\*.cs" Link="Linked\Sources\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\ezViewer\Imaging\**\*.cs" Link="Linked\Imaging\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\ezViewer\Reader\**\*.cs" Link="Linked\Reader\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\ezViewer\Interop\**\*.cs" Link="Linked\Interop\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\ezViewer\Library\**\*.cs" Link="Linked\Library\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SharpCompress" Version="1.0.0" />
+    <PackageReference Include="bblanchon.PDFium.Win32" Version="157.0.8086" />
+  </ItemGroup>
+
+</Project>

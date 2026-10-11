@@ -1,0 +1,120 @@
+<UserControl x:Class="EzViewer.Views.ReaderView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:EzViewer.Views"
+             Background="{StaticResource ReaderBrush}">
+    <Grid x:Name="RootGrid" PreviewMouseMove="RootGrid_PreviewMouseMove">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="SidebarColumn" Width="280" MinWidth="160" MaxWidth="640" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 漫画列表 -->
+        <Border x:Name="Sidebar" Grid.Column="0" Grid.RowSpan="2" Background="{StaticResource PanelBrush}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Margin="14,12,8,8">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button x:Name="ParentFolderButton" Style="{StaticResource IconButton}" Width="28" Height="28" FontSize="12"
+                                    Content="&#xE74A;" ToolTip="返回上一级文件夹 (Alt+↑ / Backspace)" Click="ParentFolder_Click" />
+                            <Button x:Name="EnterFolderButton" Style="{StaticResource IconButton}" Width="28" Height="28" FontSize="12"
+                                    Content="&#xE74B;" ToolTip="进入选中的文件夹 (Alt+↓ / Enter，或双击)" Click="EnterFolder_Click" />
+                            <Button x:Name="FavoriteButton" Style="{StaticResource IconButton}" Width="28" Height="28" FontSize="13"
+                                    Content="&#xE734;" ToolTip="把这个文件夹加入收藏夹" Click="Favorite_Click" />
+                        </StackPanel>
+                        <TextBlock x:Name="ListTitleText" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                    <TextBlock x:Name="ListPathText" Margin="0,3,0,0" FontSize="11" Foreground="{StaticResource SubtleTextBrush}"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <ListBox x:Name="ComicList" Style="{StaticResource DarkListBox}" ItemContainerStyle="{StaticResource DarkListBoxItem}"
+                         SelectionChanged="ComicList_SelectionChanged" MouseDoubleClick="ComicList_MouseDoubleClick"
+                         views:AutoScroll.IsEnabled="True" Margin="0,0,0,6">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel ToolTip="{Binding Path}" ToolTipService.InitialShowDelay="900">
+                                <TextBlock x:Name="Chevron" DockPanel.Dock="Right" Text="&#xE76C;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="9" Foreground="{StaticResource SubtleTextBrush}" VerticalAlignment="Center"
+                                           Margin="6,0,-2,0" Visibility="Hidden" />
+                                <Border DockPanel.Dock="Right" Background="{StaticResource PanelAltBrush}" CornerRadius="4" Padding="5,1,5,2"
+                                        Margin="8,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding KindLabel}" FontSize="10" Foreground="{StaticResource SubtleTextBrush}" />
+                                </Border>
+                                <TextBlock x:Name="FolderGlyph" DockPanel.Dock="Left" Text="&#xE8B7;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="13" Foreground="{StaticResource SubtleTextBrush}" VerticalAlignment="Center"
+                                           Margin="0,0,8,0" Visibility="Collapsed" />
+                                <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding CanEnter}" Value="True">
+                                    <Setter TargetName="Chevron" Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsDirectory}" Value="True">
+                                    <Setter TargetName="FolderGlyph" Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <GridSplitter x:Name="SidebarSplitter" Grid.Column="1" Grid.RowSpan="2" Width="4" Background="{StaticResource PanelBrush}"
+                      HorizontalAlignment="Stretch" Focusable="False" ResizeBehavior="PreviousAndNext"
+                      DragCompleted="SidebarSplitter_DragCompleted" />
+
+        <!-- 画面 -->
+        <Grid x:Name="Viewport" Grid.Column="2" Grid.Row="0" ClipToBounds="True" Background="Transparent"
+              MouseWheel="Viewport_MouseWheel" MouseLeftButtonDown="Viewport_MouseLeftButtonDown"
+              MouseLeftButtonUp="Viewport_MouseLeftButtonUp" MouseMove="Viewport_MouseMove"
+              LostMouseCapture="Viewport_LostMouseCapture" SizeChanged="Viewport_SizeChanged">
+            <Canvas IsHitTestVisible="False">
+                <Image x:Name="PageImage" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality" />
+            </Canvas>
+            <TextBlock x:Name="LoadingText" Text="加载中…" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="{StaticResource SubtleTextBrush}" FontSize="14" IsHitTestVisible="False" />
+            <TextBlock x:Name="ErrorText" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24"
+                       TextAlignment="Center" TextWrapping="Wrap" MaxWidth="560" LineHeight="23"
+                       Foreground="{StaticResource SubtleTextBrush}" FontSize="14" IsHitTestVisible="False" />
+            <StackPanel x:Name="FolderPanel" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Margin="24,0,24,40" MaxWidth="560" IsHitTestVisible="False">
+                <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource IconFont}" FontSize="64"
+                           Foreground="{StaticResource FaintTextBrush}" HorizontalAlignment="Center" />
+                <TextBlock x:Name="FolderNameText" FontSize="20" FontWeight="SemiBold" Margin="0,14,0,6"
+                           HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                <TextBlock x:Name="FolderInfoText" Foreground="{StaticResource SubtleTextBrush}" HorizontalAlignment="Center" />
+                <TextBlock Text="Alt+↓ / Enter / 双击 进入　·　Alt+↑ / Backspace 返回上一级" Margin="0,18,0,0"
+                           Foreground="{StaticResource FaintTextBrush}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+            </StackPanel>
+            <Border x:Name="ToastBorder" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="24,22,24,0" Padding="16,8"
+                    CornerRadius="18" Background="{StaticResource ToastBrush}" Opacity="0" IsHitTestVisible="False">
+                <TextBlock x:Name="ToastText" FontSize="14" TextTrimming="CharacterEllipsis" />
+            </Border>
+        </Grid>
+
+        <!-- 底部栏 -->
+        <Border x:Name="BottomBar" Grid.Column="2" Grid.Row="1" Background="{StaticResource BarBrush}"
+                BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0">
+            <DockPanel Margin="6,4,8,4">
+                <Button DockPanel.Dock="Left" Style="{StaticResource IconButton}" Content="&#xE72B;" ToolTip="返回书库 (Esc)" Click="Back_Click" />
+                <ToggleButton x:Name="SidebarToggle" DockPanel.Dock="Left" Style="{StaticResource IconToggle}" Content="&#xE8FD;"
+                              ToolTip="漫画列表 (Tab)" Click="SidebarToggle_Click" />
+                <TextBlock x:Name="ComicTitleText" DockPanel.Dock="Left" MaxWidth="320" Margin="8,0,16,0" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+                <Button x:Name="FullscreenButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE740;"
+                        ToolTip="全屏 (F11)" Click="Fullscreen_Click" />
+                <TextBlock x:Name="PageText" DockPanel.Dock="Right" Margin="14,0,6,0" VerticalAlignment="Center" FontSize="13"
+                           MinWidth="76" TextAlignment="Right" Typography.NumeralAlignment="Tabular" Text="- / -" />
+                <Slider x:Name="PageSlider" Style="{StaticResource ProgressSlider}" VerticalAlignment="Center"
+                        Minimum="1" Maximum="1" Value="1" SmallChange="1" LargeChange="10"
+                        IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="PageSlider_ValueChanged" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>
