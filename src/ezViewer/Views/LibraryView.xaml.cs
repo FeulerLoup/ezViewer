@@ -508,6 +508,58 @@ public partial class LibraryView : UserControl
         if ((sender as FrameworkElement)?.DataContext is ComicTile tile) OpenInExplorer(tile.Item.Path, select: true);
     }
 
+    private void TileMenuDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is ComicTile tile) DeleteTile(tile);
+    }
+
+    private void DeleteTile(ComicTile tile)
+    {
+        ThumbnailService.Instance.Remove(tile);
+        try
+        {
+            ComicScanner.MoveToRecycleBin(tile.Item, _root);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception)
+        {
+            if (File.Exists(tile.Item.Path) || Directory.Exists(tile.Item.Path)) return;
+        }
+
+        _scanned.RemoveAll(t => t.Item.Equals(tile.Item));
+        if (_root != null && _scanCache.TryGetValue(_root, out var cached))
+            cached.RemoveAll(i => i.Equals(tile.Item));
+
+        int idx = _visible.FindIndex(t => t.Item.Equals(tile.Item));
+        if (idx >= 0)
+        {
+            _visible.RemoveAt(idx);
+            int startRow = idx / _columns;
+            int newRowCount = (_visible.Count + _columns - 1) / _columns;
+            for (int r = startRow; r < newRowCount; r++)
+            {
+                int first = r * _columns;
+                var slice = _visible.GetRange(first, Math.Min(_columns, _visible.Count - first));
+                if (r < _rows.Count) _rows[r] = new TileRow(slice);
+                else _rows.Add(new TileRow(slice));
+            }
+            while (_rows.Count > newRowCount)
+                _rows.RemoveAt(_rows.Count - 1);
+        }
+
+        if (!_scanning)
+        {
+            if (_scanned.Count == 0)
+                ShowEmpty("\uE8F1", "没有找到漫画", "这个目录及其子目录里没有图片文件夹、压缩包或 PDF。", showActions: false);
+            else if (_visible.Count == 0 && _terms.Length > 0)
+                ShowEmpty("\uE721", "没有匹配的漫画", "换个关键词试试。", showActions: false);
+        }
+        UpdateStatus();
+    }
+
     private static void OpenInExplorer(string path, bool select)
     {
         try

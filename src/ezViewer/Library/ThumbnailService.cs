@@ -113,6 +113,24 @@ public sealed class ThumbnailService
         }
     }
 
+    internal void Remove(ComicTile tile)
+    {
+        lock (_gate)
+        {
+            if (tile.QueueNode != null)
+            {
+                _queue.Remove(tile.QueueNode);
+                tile.QueueNode = null;
+            }
+            if (tile.LruNode != null)
+            {
+                _lru.Remove(tile.LruNode);
+                tile.LruNode = null;
+            }
+        }
+        tile.Cover = null;
+    }
+
     private void Worker()
     {
         while (true)

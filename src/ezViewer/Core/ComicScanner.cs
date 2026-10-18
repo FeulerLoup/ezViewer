@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using Microsoft.VisualBasic.FileIO;
 
 namespace EzViewer.Core;
 
@@ -203,4 +204,85 @@ public static class ComicScanner
         if (items.Count == 0) throw new DirectoryNotFoundException("该文件夹中没有漫画，也没有子文件夹：" + dir);
         return new ListOpenPlan(dir, items, PreferredIndex(items), null);
     }
+
+    /// <summary>
+    /// 将漫画移动到回收站；若漫画文件是其所在目录中仅有的文件（且不含子目录），则连同该目录一起移动到回收站。
+    /// </summary>
+    public static void MoveToRecycleBin(ComicItem item, string? root = null)
+    {
+        var path = PathUtil.Normalize(item.Path);
+        if (item.Kind == ComicKind.Folder)
+        {
+            if (!Directory.Exists(path)) return;
+            if (CanRecycleDirectory(path, root) && IsPureImageDirectory(path))
+            {
+                FileSystem.DeleteDirectory(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin, UICancelOption.ThrowException);
+            }
+            else
+            {
+                foreach (var img in GetImageFiles(path))
+                    FileSystem.DeleteFile(img, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin, UICancelOption.ThrowException);
+            }
+            return;
+        }
+
+        if (!File.Exists(path)) return;
+        var dir = Path.GetDirectoryName(path);
+        if (dir != null && CanRecycleDirectory(dir, root) && IsOnlyFileInDirectory(path, dir))
+            FileSystem.DeleteDirectory(dir, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin, UICancelOption.ThrowException);
+        else
+            FileSystem.DeleteFile(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin, UICancelOption.ThrowException);
+    }
+
+    private static bool CanRecycleDirectory(string dir, string? root) =>
+        !string.IsNullOrEmpty(dir) &&
+        Path.GetDirectoryName(dir) != null &&
+        (root == null || !PathUtil.Equal(dir, root));
+
+    private static bool IsOnlyFileInDirectory(string filePath, string dir)
+    {
+        try
+        {
+            bool foundSelf = false;
+            foreach (var info in new DirectoryInfo(dir).EnumerateFileSystemInfos())
+            {
+                if ((info.Attributes & FileAttributes.Directory) != 0) return false;
+                if (PathUtil.Equal(info.FullName, filePath))
+                {
+                    foundSelf = true;
+                    continue;
+                }
+                if (IsIgnorableSystemFile(info)) continue;
+                return false;
+            }
+            return foundSelf;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsPureImageDirectory(string dir)
+    {
+        try
+        {
+            foreach (var info in new DirectoryInfo(dir).EnumerateFileSystemInfos())
+            {
+                if ((info.Attributes & FileAttributes.Directory) != 0) return false;
+                if (FileTypes.IsImage(info.Name) || IsIgnorableSystemFile(info)) continue;
+                return false;
+            }
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsIgnorableSystemFile(FileSystemInfo info) =>
+        (info.Attributes & (FileAttributes.Hidden | FileAttributes.System)) != 0 &&
+        (info.Name.Equals("Thumbs.db", StringComparison.OrdinalIgnoreCase) ||
+         info.Name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase));
 }

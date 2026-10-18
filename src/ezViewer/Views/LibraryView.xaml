@@ -37,6 +37,8 @@
                         <MenuItem Header="在列表模式中打开" Click="TileMenuList_Click" />
                         <Separator />
                         <MenuItem Header="在资源管理器中显示" Click="TileMenuExplorer_Click" />
+                        <Separator />
+                        <MenuItem Header="删除" Click="TileMenuDelete_Click" />
                     </ContextMenu>
                 </Button.ContextMenu>
                 <StackPanel Width="180">
