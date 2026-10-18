@@ -59,6 +59,7 @@ public partial class LibraryView : UserControl
     private int _columns = 1;
     private string[] _terms = Array.Empty<string>();
     private ScrollViewer? _scroll;
+    private double? _restoreOffset;
     private bool _suppressOrderEvent;
 
     public LibraryView()
@@ -73,6 +74,7 @@ public partial class LibraryView : UserControl
         _filterTimer.Tick += (_, _) =>
         {
             _filterTimer.Stop();
+            _restoreOffset = null;
             ApplyFilter();
             ScrollToRow(0);
         };
@@ -209,6 +211,9 @@ public partial class LibraryView : UserControl
 
     private void LoadFavorite(string path, bool rescan)
     {
+        double? restoreOffset = rescan && PathUtil.Equal(_root, path)
+            ? (_restoreOffset ?? _scroll?.VerticalOffset)
+            : null;
         CancelScan();
         ThumbnailService.Instance.CancelPending();
         _root = path;
@@ -217,11 +222,13 @@ public partial class LibraryView : UserControl
 
         HeaderTitle.Text = PathUtil.GetDisplayName(path);
         HeaderTitle.ToolTip = path;
-        ClearTiles();
+        ClearTiles(resetScroll: restoreOffset == null);
+        _restoreOffset = restoreOffset;
         UpdateToolbar();
 
         if (!Directory.Exists(path))
         {
+            _restoreOffset = null;
             ShowEmpty("\uE783", "目录不存在", path + "\n可能已被移动、删除，或所在的磁盘没有连接。", showActions: false);
             HeaderStatus.Text = string.Empty;
             return;
@@ -274,6 +281,12 @@ public partial class LibraryView : UserControl
                 AppendRows(matching);
                 HideEmpty();
             }
+        }
+
+        if (_restoreOffset is { } offset && (final || _rows.Count * RowHeight >= offset + (_scroll?.ViewportHeight ?? 0)))
+        {
+            _restoreOffset = null;
+            _scroll?.ScrollToVerticalOffset(offset);
         }
 
         if (final)
@@ -365,12 +378,13 @@ public partial class LibraryView : UserControl
             _rows.Add(new TileRow(tiles.GetRange(i, Math.Min(_columns, tiles.Count - i))));
     }
 
-    private void ClearTiles()
+    private void ClearTiles(bool resetScroll = true)
     {
+        _restoreOffset = null;
         _scanned = new List<ComicTile>();
         _visible = new List<ComicTile>();
         _rows.ReplaceAll(Array.Empty<TileRow>());
-        ScrollToRow(0);
+        if (resetScroll) ScrollToRow(0);
     }
 
     private void TileGrid_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateColumns();
@@ -385,6 +399,8 @@ public partial class LibraryView : UserControl
         if (cols == _columns) return;
 
         int firstTile = FirstVisibleRow() * _columns;
+        if (_restoreOffset is { } offset)
+            _restoreOffset = (int)(offset / RowHeight) * _columns / cols * RowHeight;
         _columns = cols;
         RebuildRows();
         ScrollToRow(firstTile / _columns);
@@ -397,6 +413,7 @@ public partial class LibraryView : UserControl
     private void Scroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         if (sender is not ScrollViewer sv || AutoScroll.IsActive) return;
+        _restoreOffset = null;
         sv.ScrollToVerticalOffset(sv.VerticalOffset - e.Delta * 1.6);
         e.Handled = true;
     }
