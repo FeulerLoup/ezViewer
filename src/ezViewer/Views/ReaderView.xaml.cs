@@ -87,6 +87,7 @@ public partial class ReaderView : UserControl
     // 控件状态
     private bool _syncingSlider;
     private bool _sliderDragging;
+    private double _sliderGrabOffset;
     private bool _syncingList;
     private int _pendingOpenIndex = -1;
     private int _sliderPendingPage = -1;
@@ -123,7 +124,7 @@ public partial class ReaderView : UserControl
             if (_sliderPendingPage < 0) return;
             int p = _sliderPendingPage;
             _sliderPendingPage = -1;
-            ShowPage(p);
+            if (p != _page) ShowPage(p);
         };
 
         _openDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(160) };
@@ -149,15 +150,6 @@ public partial class ReaderView : UserControl
             _cursorTimer.Stop();
             if (_fullscreen && !_dragging && !BottomBar.IsMouseOver) Viewport.Cursor = Cursors.None;
         };
-
-        PageSlider.AddHandler(Thumb.DragStartedEvent, new DragStartedEventHandler((_, _) => _sliderDragging = true));
-        PageSlider.AddHandler(Thumb.DragCompletedEvent, new DragCompletedEventHandler((_, _) =>
-        {
-            _sliderDragging = false;
-            _sliderTimer.Stop();
-            _sliderPendingPage = -1;
-            if (_session != null) ShowPage(SliderPage());
-        }));
     }
 
     public ComicItem? CurrentItem => _index >= 0 && _index < _items.Count ? _items[_index] : null;
@@ -341,6 +333,10 @@ public partial class ReaderView : UserControl
     private void CloseSession()
     {
         ++_showVersion;
+        _sliderDragging = false;
+        _sliderTimer.Stop();
+        _sliderPendingPage = -1;
+        if (PageSlider.IsMouseCaptured) PageSlider.ReleaseMouseCapture();
         StopAnimation();
         var s = _session;
         _session = null;
@@ -856,6 +852,7 @@ public partial class ReaderView : UserControl
         _panKeys.Clear();
         UnhookPan();
         EndDrag();
+        EndSliderDrag();
     }
 
     private void HookPan()
@@ -1084,6 +1081,68 @@ public partial class ReaderView : UserControl
     }
 
     private int SliderPage() => Math.Clamp((int)Math.Round(PageSlider.Value) - 1, 0, Math.Max(0, _pageCount - 1));
+
+    private void PageSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_session == null || _pageCount <= 1) return;
+        e.Handled = true;
+        double x = e.GetPosition(PageSlider).X;
+        double usable = Math.Max(1, PageSlider.ActualWidth - 16);
+        double range = PageSlider.Maximum - PageSlider.Minimum;
+        double thumbCenter = 8 + (range > 0 ? (PageSlider.Value - PageSlider.Minimum) / range * usable : 0);
+        if (Math.Abs(x - thumbCenter) <= 8)
+        {
+            _sliderGrabOffset = x - thumbCenter;
+        }
+        else
+        {
+            _sliderGrabOffset = 0;
+            SetSliderValueFromMouse(x);
+        }
+        _sliderDragging = true;
+        PageSlider.CaptureMouse();
+    }
+
+    private void PageSlider_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_sliderDragging) return;
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            EndSliderDrag();
+            return;
+        }
+        SetSliderValueFromMouse(e.GetPosition(PageSlider).X);
+    }
+
+    private void PageSlider_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => EndSliderDrag();
+
+    private void PageSlider_LostMouseCapture(object sender, MouseEventArgs e) => EndSliderDrag();
+
+    private void SetSliderValueFromMouse(double x)
+    {
+        double usable = PageSlider.ActualWidth - 16;
+        if (usable <= 0) return;
+        double ratio = Math.Clamp((x - _sliderGrabOffset - 8) / usable, 0, 1);
+        double value = Math.Round(PageSlider.Minimum + ratio * (PageSlider.Maximum - PageSlider.Minimum));
+        if (value != PageSlider.Value) PageSlider.Value = value;
+    }
+
+    private void EndSliderDrag()
+    {
+        if (!_sliderDragging) return;
+        _sliderDragging = false;
+        _sliderTimer.Stop();
+        _sliderPendingPage = -1;
+        if (PageSlider.IsMouseCaptured) PageSlider.ReleaseMouseCapture();
+        if (_session != null && _pageCount > 0)
+        {
+            int page = SliderPage();
+            if (page != _page) ShowPage(page);
+            else UpdatePageUi();
+        }
+        if (_fullscreen && !BottomBar.IsMouseOver && !_barHideTimer.IsEnabled)
+            _barHideTimer.Start();
+    }
 
     private void PageSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {

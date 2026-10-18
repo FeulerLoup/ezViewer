@@ -113,7 +113,11 @@
                            MinWidth="76" TextAlignment="Right" Typography.NumeralAlignment="Tabular" Text="- / -" />
                 <Slider x:Name="PageSlider" Style="{StaticResource ProgressSlider}" VerticalAlignment="Center"
                         Minimum="1" Maximum="1" Value="1" SmallChange="1" LargeChange="10"
-                        IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="PageSlider_ValueChanged" />
+                        IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="PageSlider_ValueChanged"
+                        PreviewMouseLeftButtonDown="PageSlider_PreviewMouseLeftButtonDown"
+                        MouseMove="PageSlider_MouseMove"
+                        MouseLeftButtonUp="PageSlider_MouseLeftButtonUp"
+                        LostMouseCapture="PageSlider_LostMouseCapture" />
             </DockPanel>
         </Border>
     </Grid>

@@ -335,6 +335,10 @@
                             <Setter TargetName="Dot" Property="Width" Value="16" />
                             <Setter TargetName="Dot" Property="Height" Value="16" />
                         </Trigger>
+                        <DataTrigger Binding="{Binding IsMouseCaptured, RelativeSource={RelativeSource AncestorType=Slider}}" Value="True">
+                            <Setter TargetName="Dot" Property="Width" Value="16" />
+                            <Setter TargetName="Dot" Property="Height" Value="16" />
+                        </DataTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -343,7 +347,6 @@
 
     <Style x:Key="ProgressSlider" TargetType="Slider">
         <Setter Property="Focusable" Value="False" />
-        <Setter Property="IsMoveToPointEnabled" Value="True" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
