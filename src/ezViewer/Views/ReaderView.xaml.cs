@@ -89,6 +89,7 @@ public partial class ReaderView : UserControl
     private bool _sliderDragging;
     private double _sliderGrabOffset;
     private bool _syncingList;
+    private bool _centerList;
     private int _pendingOpenIndex = -1;
     private int _sliderPendingPage = -1;
     private readonly DispatcherTimer _toastTimer;
@@ -231,6 +232,7 @@ public partial class ReaderView : UserControl
         ReleaseInput();
         _items = new List<ComicItem>();
         _index = -1;
+        _centerList = false;
         _syncingList = true;
         ComicList.ItemsSource = null;
         _syncingList = false;
@@ -242,6 +244,7 @@ public partial class ReaderView : UserControl
         _items = items;
         _listFolder = listFolder;
         _index = -1;
+        _centerList = true;
         _syncingList = true;
         ComicList.ItemsSource = _items;
         ComicList.SelectedIndex = -1;
@@ -1044,7 +1047,11 @@ public partial class ReaderView : UserControl
             _settings.SidebarVisible = visible;
             _settings.Save();
         }
-        if (visible) Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(SyncListSelection));
+        if (visible)
+        {
+            _centerList = true;
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(SyncListSelection));
+        }
     }
 
     private void SyncListSelection()
@@ -1052,8 +1059,43 @@ public partial class ReaderView : UserControl
         if (_index < 0 || _index >= _items.Count) return;
         _syncingList = true;
         ComicList.SelectedIndex = _index;
-        if (_sidebarVisible) ComicList.ScrollIntoView(_items[_index]);
+        if (_sidebarVisible)
+        {
+            if (_centerList)
+            {
+                _centerList = false;
+                ScrollListToCenter(_index);
+            }
+            else
+            {
+                ComicList.ScrollIntoView(_items[_index]);
+            }
+        }
         _syncingList = false;
+    }
+
+    private void ScrollListToCenter(int index, bool defer = true)
+    {
+        if (index < 0 || index >= _items.Count) return;
+        ComicList.UpdateLayout();
+        if (AutoScroll.FindScrollViewer(ComicList) is not { ViewportHeight: > 0 } sv)
+        {
+            if (defer)
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+                {
+                    if (_sidebarVisible && _index >= 0 && _index < _items.Count) ScrollListToCenter(_index, defer: false);
+                }));
+            }
+            return;
+        }
+        ComicList.ScrollIntoView(_items[index]);
+        ComicList.UpdateLayout();
+        if (ComicList.ItemContainerGenerator.ContainerFromIndex(index) is FrameworkElement container)
+        {
+            double top = container.TranslatePoint(new Point(0, 0), sv).Y;
+            sv.ScrollToVerticalOffset(Math.Max(0, sv.VerticalOffset + top - (sv.ViewportHeight - container.ActualHeight) / 2));
+        }
     }
 
     private void SidebarSplitter_DragCompleted(object sender, DragCompletedEventArgs e)
